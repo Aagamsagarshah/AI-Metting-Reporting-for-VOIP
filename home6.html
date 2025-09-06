@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Topic Information</title>
+<style>
+  /* ---------- Base Styles ---------- */
+  body {
+    background: linear-gradient(135deg, #0d0d0d, #1a1a40);
+    color: #fff;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    margin: 0;
+  }
+  .container {
+    background: rgba(255,255,255,0.05);
+    padding: 30px;
+    border-radius: 20px;
+    width: 90%;
+    max-width: 500px;
+    box-shadow: 0 0 40px rgba(0,0,0,0.8);
+    backdrop-filter: blur(15px);
+  }
+  h1, h2 {
+    text-align: center;
+    margin-bottom: 20px;
+    color: #00f5ff;
+  }
+  p {
+    font-size: 16px;
+    line-height: 1.5;
+    text-align: justify;
+  }
+  input {
+    width: 100%;
+    padding: 12px;
+    margin: 10px 0;
+    border-radius: 8px;
+    border: none;
+    outline: none;
+    background: rgba(255,255,255,0.1);
+    color: #fff;
+  }
+  button {
+    width: 100%;
+    padding: 12px;
+    border-radius: 8px;
+    border: none;
+    background: #00f5ff;
+    font-weight: bold;
+    cursor: pointer;
+    transition: 0.3s ease;
+  }
+  button:hover {
+    background: #0077ff;
+  }
+  .section {
+    display: none;
+  }
+  .section.active {
+    display: block;
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+
+  <!-- Login Section -->
+  <div id="loginSection" class="section active">
+    <h2>Login to Continue</h2>
+    <form id="loginForm">
+      <input type="email" id="email" placeholder="Email" required>
+      <input type="password" id="password" placeholder="Password" required>
+      <button type="submit">Login</button>
+    </form>
+  </div>
+
+  <!-- Content Section -->
+  <div id="contentSection" class="section">
+    <h1 id="topicTitle">Welcome to AI Meeting Reporting</h1>
+    <p id="topicInfo">
+      AI Meeting Reporting for VOIP is a powerful tool that allows real-time transcription of voice-over-IP calls, automatic generation of meeting summaries, and actionable insights for all participants. 
+      <br><br>
+      It improves productivity, ensures no point is missed, and provides easy documentation for future reference. 
+      <br><br>
+      Key features include live transcription, automatic summary generation, participant tracking, and cloud storage for past meetings. 
+      <br><br>
+      AI-driven analytics help managers monitor communication efficiency and identify discussion trends. 
+      <br><br>
+      Seamless integration with VOIP systems enables smooth workflow without additional software.
+      <br><br>
+      Notifications remind participants of meetings and deadlines. 
+      <br><br>
+      Reports can be exported in PDF for easy sharing. 
+      <br><br>
+      The platform supports multi-language transcription. 
+      <br><br>
+      Security features ensure data privacy and secure access. 
+      <br><br>
+      Overall, AI Meeting Reporting is an essential tool for modern collaborative environments.
+    </p>
+  </div>
+
+</div>
+
+<script>
+  const loginForm = document.getElementById('loginForm');
+  const loginSection = document.getElementById('loginSection');
+  const contentSection = document.getElementById('contentSection');
+
+  loginForm.addEventListener('submit', function(e){
+      e.preventDefault();
+      // After login, show content section
+      loginSection.classList.remove('active');
+      contentSection.classList.add('active');
+  });
+</script>
+
+</body>
+</html>

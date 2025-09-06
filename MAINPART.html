@@ -1,0 +1,732 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js">
+    </script>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>AI Meeting Reporting for VOIP — Demo App (with Avatar)</title>
+<style>
+  :root{
+    --bg:#071023; --panel:#0b1220; --accent:#7c3aed; --accent2:#06b6d4; --muted:#9aa4b2;
+    --glass: rgba(255,255,255,0.03);
+    font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, Arial;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0}
+  body{margin:0;height:100vh;background:linear-gradient(180deg,var(--bg),#041026);color:#eaf6ff;overflow:hidden}
+  .app{display:flex;height:100vh;position:relative}
+  /* sidebar */
+  .sidebar{width:220px;background:linear-gradient(180deg,#051026,#071229);padding:18px;border-right:1px solid rgba(255,255,255,0.02);flex-shrink:0}
+  .brand{display:flex;gap:12px;align-items:center;margin-bottom:12px}
+  .logo{width:44px;height:44px;border-radius:10px;background:linear-gradient(135deg,var(--accent2),var(--accent));display:grid;place-items:center;font-weight:900;color:#071022}
+  .nav{margin-top:12px;display:flex;flex-direction:column;gap:8px}
+  .nav button{background:transparent;border:0;color:var(--muted);padding:10px;border-radius:8px;text-align:left;cursor:pointer;font-size:15px}
+  .nav button.active{background:linear-gradient(90deg, rgba(124,58,237,0.12), rgba(6,182,212,0.05));color:#fff}
+  .small{color:var(--muted);font-size:13px}
+  /* main */
+  .main{flex:1;padding:22px;overflow:auto;position:relative}
+  header.top{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:14px}
+  .top-left{display:flex;flex-direction:column}
+  .title{font-size:20px;font-weight:800}
+  .controls{display:flex;gap:8px;align-items:center}
+  .btn{background:linear-gradient(90deg,var(--accent),var(--accent2));border:0;padding:10px 12px;border-radius:8px;color:#021022;font-weight:800;cursor:pointer}
+  .btn.ghost{background:transparent;border:1px solid rgba(255,255,255,0.04);color:var(--muted)}
+  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+  .card{background:linear-gradient(180deg, rgba(255,255,255,0.01), transparent);padding:16px;border-radius:12px;border:1px solid rgba(255,255,255,0.02)}
+  .card h3{margin:0 0 8px}
+  /* meetings page */
+  .meet-controls{display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap}
+  .transcript{background:#021022;padding:12px;border-radius:8px;height:220px;overflow:auto;font-family:monospace;font-size:13px}
+  .lang-select, .format-select{padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,0.03);background:transparent;color:inherit}
+  .file-list{margin-top:10px;display:flex;flex-direction:column;gap:6px}
+  .file-item{background:rgba(255,255,255,0.02);padding:8px;border-radius:8px;display:flex;justify-content:space-between;align-items:center}
+  /* chat */
+  .chat{display:flex;flex-direction:column;height:360px;border-radius:10px;border:1px solid rgba(255,255,255,0.02);overflow:hidden}
+  .chat-messages{flex:1;padding:12px;overflow:auto;background:linear-gradient(180deg, rgba(255,255,255,0.01), transparent)}
+  .chat-input{display:flex;padding:8px;gap:8px;background:rgba(0,0,0,0.04)}
+  .msg{margin-bottom:8px}
+  .msg.user{text-align:right}
+  .tag{font-size:12px;padding:4px 8px;border-radius:999px;background:rgba(255,255,255,0.02);display:inline-block}
+  /* host storage / employee storage */
+  .storage{display:flex;gap:12px;flex-direction:column}
+  .item-list{max-height:220px;overflow:auto;padding:8px;border-radius:8px;background:rgba(255,255,255,0.01)}
+  /* Avatar & popup */
+  .avatar-wrap{position:fixed;right:18px;bottom:18px;z-index:1200;display:flex;flex-direction:column;align-items:flex-end;gap:8px}
+  .avatar-btn{width:78px;height:78px;border-radius:999px;background:linear-gradient(135deg,#ff9aa2,#ff7a9a);display:grid;place-items:center;color:#071022;font-weight:900;font-size:18px;cursor:pointer;box-shadow:0 14px 40px rgba(2,6,23,0.6);border:4px solid rgba(255,255,255,0.06)}
+  .avatar-btn.pulse{animation:pulse 1.6s infinite}
+  @keyframes pulse{0%{box-shadow:0 6px 18px rgba(124,58,237,0.12)}50%{box-shadow:0 24px 60px rgba(124,58,237,0.22)}100%{box-shadow:0 6px 18px rgba(124,58,237,0.12)}}
+  .avatar-name{font-size:13px;color:var(--muted);margin-right:6px}
+  .avatar-popup{min-width:260px;max-width:360px;background:linear-gradient(180deg,#081226,#041022);border-radius:12px;padding:12px;color:#eaf6ff;border:1px solid rgba(255,255,255,0.04);box-shadow:0 20px 60px rgba(2,6,23,0.6)}
+  .avatar-popup h4{margin:0 0 6px}
+  .avatar-popup .btn{padding:8px 10px;font-size:13px}
+  .notification-bubble{background:#ffdf5d;color:#021022;padding:8px 10px;border-radius:10px;font-weight:700;box-shadow:0 8px 30px rgba(0,0,0,0.5);border:1px solid rgba(0,0,0,0.15)}
+  /* chat bubble window tied to avatar */
+  .avatar-chat{position:fixed;right:18px;bottom:110px;width:340px;max-height:520px;background:linear-gradient(180deg,#0b1220,#071026);border-radius:12px;box-shadow:0 30px 80px rgba(2,6,23,0.7);display:none;flex-direction:column;overflow:hidden;z-index:1300;border:1px solid rgba(255,255,255,0.04)}
+  .avatar-chat .chat-header{display:flex;align-items:center;gap:10px;padding:12px;background:linear-gradient(90deg,var(--accent),var(--accent2));color:#021022}
+  .avatar-chat .chat-body{padding:12px;flex:1;overflow:auto;background:linear-gradient(180deg,rgba(255,255,255,0.01),transparent)}
+  .avatar-chat .chat-footer{display:flex;padding:10px;gap:8px;background:rgba(255,255,255,0.02)}
+  .avatar-chat input{flex:1;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:inherit}
+  .avatar-chat button{padding:8px 10px;border-radius:8px;border:0;background:var(--accent);color:#021022;cursor:pointer}
+  /* small helpers */
+  .hidden{display:none}
+  @media (max-width:1000px){ .grid{grid-template-columns:1fr} .sidebar{display:none} .avatar-chat{right:10px;left:10px;width:auto} }
+</style>
+</head>
+<body>
+
+<div class="app" role="application" aria-label="AI Meeting Reporter App">
+  <aside class="sidebar" aria-label="Main navigation">
+    <div class="brand">
+      <div class="logo">AI</div>
+      <div>
+        <div style="font-weight:900">AI Meeting Reporter</div>
+        <div class="small">VOIP · Reports</div>
+      </div>
+    </div>
+
+    <nav class="nav" role="navigation" aria-label="Primary">
+      <button data-page="dashboard" class="active">Dashboard</button>
+      <button data-page="reports">Reports</button>
+      <button data-page="meetings">Meetings</button>
+      <button data-page="settings">Settings</button>
+    </nav>
+
+    <div style="margin-top:18px" class="small">Host storage & employee storage simulated (local demo)</div>
+  </aside>
+
+  <main class="main" role="main">
+    <header class="top" role="banner">
+      <div class="top-left">
+        <div class="title">AI Meeting Reporting for VOIP</div>
+        <div class="small" id="welcomeText">Welcome — sign in to start</div>
+      </div>
+
+      <div class="controls" role="region" aria-label="Controls">
+        <select id="currentHost" class="lang-select" title="Select host">
+          <option value="host1">Host — host1@example.com</option>
+          <option value="host2">Host — host2@example.com</option>
+        </select>
+        <button id="btnNewHost" class="btn ghost">Add Host</button>
+      </div>
+    </header>
+
+    <!-- PAGES -->
+    <section id="page-dashboard" class="page" style="display:block" aria-live="polite">
+      <div class="grid" role="region" aria-label="Summary cards">
+        <div class="card" role="article">
+          <h3>Today's Meetings</h3>
+          <p class="small">3 Meetings Scheduled</p>
+          <div style="margin-top:10px"><button class="btn" onclick="goto('meetings')">Open Meetings</button></div>
+        </div>
+
+        <div class="card" role="article">
+          <h3>VOIP Logs</h3>
+          <p class="small">25 Calls Recorded</p>
+          <div style="margin-top:10px"><button class="btn" onclick="goto('reports')">Open Reports</button></div>
+        </div>
+
+        <div class="card" role="article">
+          <h3>Change setting</h3>
+          <p class="small"></p>
+          <div style="margin-top:10px"><button class="btn" onclick="goto('Settings')">Open Settings</button></div>
+          <!-- SETTINGS -->
+   <section id="settings">
+ 
+        </div>
+
+        <div class="card" role="article">
+          <h3>AI Insights</h3>
+          <p class="small">4 Summaries Generated</p>
+          <div style="margin-top:10px"><button class="btn" onclick="openQuickSummary()">Quick Summary</button></div>
+        </div>
+      </div>
+
+      <div style="margin-top:14px;display:flex;gap:14px;flex-wrap:wrap">
+        <div style="flex:1" class="card" aria-live="polite">
+          <h3>AI Chat</h3>
+          <div class="chat" id="chatBox">
+            <div class="chat-messages" id="chatMessages" aria-live="polite"></div>
+            <div class="chat-input">
+              <input id="chatInput" style="flex:1;padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,0.03);background:transparent;color:inherit" placeholder="Ask the AI..." />
+              <button class="btn" onclick="sendChat()">Send</button>
+            </div>
+          </div>
+        </div>
+
+        <div style="width:360px" class="card" aria-live="polite">
+          <h3>Host Inbox (simulated)</h3>
+          <div class="storage">
+            <div class="small">Select host to view stored summaries</div>
+            <div class="item-list" id="hostStorage" aria-live="polite"></div>
+            <div style="margin-top:8px">
+              <button class="btn ghost" onclick="downloadHostAll()">Download All for Host</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+     <!-- REPORTS -->
+    <section id="page-reports" class="page" style="display:none">
+      <div class="card">
+        <h3>Reports Analytics</h3>
+        <div class="analytics">
+          <div class="card"><h3>Total Meetings</h3><p>25 this month</p></div>
+          <div class="card"><h3>Most Active Host</h3><p>host1@example.com</p></div>
+          <div class="card"><h3>Avg Meeting Length</h3><p>45 minutes</p></div>
+          <div class="card"><h3>Summaries Generated</h3><p>72 total</p></div>
+        </div>
+      </div>
+      <div style="margin-top:14px" class="card">
+        <h3>Detailed Reports</h3>
+        <div id="reportsList" class="small" style="margin-top:8px"></div>
+      </div>
+    </section>
+
+    <section id="page-meetings" class="page" style="display:none">
+      <div class="card">
+        <h3>Meetings</h3>
+
+        <div class="meet-controls" role="group" aria-label="Meeting controls">
+          <input id="meetingTitle" placeholder="Meeting title" style="padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,0.03);background:transparent;color:inherit" />
+          <button class="btn" id="startMeetingBtn">Start Meeting</button>
+          <button class="btn ghost" id="endMeetingBtn">End Meeting</button>
+
+          <label class="small" style="margin-left:8px">Schedule:</label>
+          <input type="datetime-local" id="scheduleAt" style="padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,0.03);background:transparent;color:inherit" />
+          <button class="btn ghost" id="scheduleBtn">Schedule</button>
+        </div>
+
+        <div style="margin-top:8px" class="small">Start time: <span id="meetingStart">—</span> — End time: <span id="meetingEnd">—</span> — Timer: <span id="meetingTimer">00:00:00</span></div>
+
+        <div style="margin-top:12px">
+          <div class="small">Attach files / package (simulated)</div>
+          <input id="attachFiles" type="file" multiple style="margin-top:8px;color:inherit" />
+          <div class="file-list" id="attachedList" aria-live="polite"></div>
+        </div>
+
+        <div style="margin-top:12px">
+          <div class="small">Transcript (simulated)</div>
+          <div id="transcriptArea" class="transcript" aria-live="polite">—</div>
+        </div>
+
+        <div style="margin-top:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <label class="small">Language:</label>
+          <select id="summaryLang" class="lang-select">
+            <option value="en">English</option>
+            <option value="hi">Hindi</option>
+            <option value="mr">Marathi</option>
+            <option value="gu">Gujarati</option>
+          </select>
+
+          <label class="small">Format:</label>
+          <select id="summaryFormat" class="format-select">
+            <option value="pdf">PDF</option>
+            <option value="docx">DOCX</option>
+            <option value="txt">TXT</option>
+            <option value="png">PNG</option>
+            <option value="jpg">JPG</option>
+            <option value="zip">ZIP</option>
+          </select>
+
+          <button class="btn" id="generateSummaryBtn">Generate Summary & Deliver</button>
+        </div>
+
+        <div id="genStatus" class="small" style="margin-top:10px"></div>
+
+      </div>
+    </section>
+
+
+<!-- Avatar + Chat window -->
+<div class="avatar-wrap" aria-hidden="false">
+  <div id="avatarNotification" class="notification-bubble hidden" role="status" aria-live="polite"></div>
+
+  <div style="display:flex;align-items:center;gap:8px">
+    <div class="avatar-name">Sara — Assistant</div>
+    <div id="avatarBtn" class="avatar-btn" title="Open Sara, your assistant" aria-haspopup="dialog" aria-expanded="false" aria-controls="avatarChat">
+      <!-- simple SVG face icon for ladki avatar -->
+      <svg width="44" height="44" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <defs>
+          <linearGradient id="g" x1="0" x2="1" y1="0" y2="1">
+            <stop offset="0" stop-color="#ff9aa2"/>
+            <stop offset="1" stop-color="#ff7a9a"/>
+          </linearGradient>
+        </defs>
+        <circle cx="32" cy="32" r="30" fill="url(#g)"></circle>
+        <circle cx="22" cy="26" r="4" fill="#071022"></circle>
+        <circle cx="42" cy="26" r="4" fill="#071022"></circle>
+        <path d="M20 40 q12 10 24 0" stroke="#071022" stroke-width="2" fill="none" stroke-linecap="round"></path>
+      </svg>
+    </div>
+  </div>
+
+  <div id="avatarPopup" class="avatar-popup hidden" role="dialog" aria-hidden="true" aria-label="Sara assistant">
+    <h4>Hi — I'm Sara 👋</h4>
+    <div class="small">I can remind you about scheduled meetings, show summaries, and help generate reports.</div>
+    <div style="margin-top:10px;display:flex;gap:8px">
+      <button class="btn" onclick="openAvatarChat()">Chat with Sara</button>
+      <button class="btn ghost" onclick="showUpcoming()">Show Next Meeting</button>
+    </div>
+  </div>
+</div>
+
+<!-- Floating chat window specifically for Sara -->
+<div class="avatar-chat" id="avatarChat" role="dialog" aria-hidden="true">
+  <div class="chat-header">
+    <!-- small avatar + title -->
+    <svg width="36" height="36" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <defs><linearGradient id="g2" x1="0" x2="1"><stop offset="0" stop-color="#ff9aa2"/><stop offset="1" stop-color="#ff7a9a"/></linearGradient></defs>
+      <circle cx="32" cy="32" r="30" fill="url(#g2)"></circle>
+      <circle cx="22" cy="26" r="3.6" fill="#071022"></circle>
+      <circle cx="42" cy="26" r="3.6" fill="#071022"></circle>
+      <path d="M20 40 q12 8 24 0" stroke="#071022" stroke-width="2" fill="none" stroke-linecap="round"></path>
+    </svg>
+    <div style="flex:1">Sara — AI Assistant</div>
+    <button class="btn ghost" onclick="closeAvatarChat()">Close</button>
+  </div>
+  <div class="chat-body" id="avatarChatBody" aria-live="polite"></div>
+  <div class="chat-footer">
+    <input id="avatarChatInput" placeholder="Ask Sara about meetings, summaries..." />
+    <button onclick="avatarSend()" class="btn">Send</button>
+  </div>
+</div>
+
+ <script>
+/* ---------- SPA nav ---------- */
+document.querySelectorAll('.nav button').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('.nav button').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    const page = btn.dataset.page;
+    document.querySelectorAll('section.page').forEach(s=>s.style.display = s.id === 'page-'+page ? 'block' : 'none');
+  });
+});
+function goto(page){ document.querySelectorAll('.nav button').forEach(b=>b.classList.remove('active')); document.querySelector(`[data-page="${page}"]`).classList.add('active'); document.querySelectorAll('section.page').forEach(s=>s.style.display = s.id === 'page-'+page ? 'block' : 'none'); }
+
+/* ---------- Meeting simulation & attachments ---------- */
+let meeting = null;
+let transcriptCache = [];
+let meetingTimerInterval = null;
+const sampleLines = [
+"We need to schedule the upgrade in low-traffic hours.",
+  "Testing the SIP gateway before deployment is critical.",
+  "Make sure all employees have backup communication channels.",
+  "Update training materials for the new system.",
+  "Monitor call quality post-upgrade.",
+  "Assign QA team to verify configuration.",
+  "Ensure network latency is within acceptable limits.",
+  "Notify clients about potential downtime.",
+  "Check compatibility with current endpoints.",
+  "Document all steps and create a summary.",
+  "Verify firewall and security policies are updated.",
+  "Confirm all VoIP endpoints are reachable.",
+  "Prepare rollback plan in case of failure.",
+  "Coordinate with IT support for smooth execution.",
+  "Check bandwidth usage during peak hours.",
+  "Run automated test scripts post-deployment.",
+  "Train new employees on system changes.",
+  "Ensure logs are captured for troubleshooting.",
+  "Schedule regular status meetings for the upgrade.",
+  "Monitor jitter and packet loss metrics.",
+  "Verify codec compatibility across devices.",
+  "Notify stakeholders about system changes.",
+  "Test call recording functionality after upgrade.",
+  "Document any observed anomalies during testing.",
+  "Validate integration with CRM system.",
+  "Prepare FAQ for end-users post-upgrade.",
+  "Ensure VPN access is working for remote staff.",
+  "Check conference bridge functionality.",
+  "Review previous incident reports before upgrade.",
+  "Assign tasks and deadlines for each team member."
+];
+
+document.getElementById('startMeetingBtn').addEventListener('click', ()=>{
+  const title = document.getElementById('meetingTitle').value || ('Meeting ' + new Date().toLocaleTimeString());
+  meeting = { id: Date.now(), title, start: new Date().toISOString(), attachments: [] };
+  document.getElementById('meetingStart').innerText = new Date(meeting.start).toLocaleString();
+  transcriptCache = [];
+  document.getElementById('transcriptArea').innerText = '';
+  document.getElementById('genStatus').innerText = 'Meeting started: ' + title;
+  // start simulated transcript
+  meeting._sim = setInterval(()=>{
+    const line = sampleLines[Math.floor(Math.random()*sampleLines.length)];
+    const ts = new Date().toLocaleTimeString();
+    transcriptCache.push(ts + ' — ' + line);
+    document.getElementById('transcriptArea').innerText = transcriptCache.join('\\n');
+  }, 1300);
+  // start timer
+  startTimer();
+  // avatar notification: meeting started
+  avatarNotify(`Meeting started: ${title} at ${new Date(meeting.start).toLocaleTimeString()}`);
+  // make avatar pulse so user notices
+  triggerAvatarPulse(3);
+});
+
+document.getElementById('endMeetingBtn').addEventListener('click', ()=>{
+  if(!meeting) { alert('No meeting active'); return; }
+  clearInterval(meeting._sim);
+  meeting.end = new Date().toISOString();
+  document.getElementById('meetingEnd').innerText = new Date(meeting.end).toLocaleString();
+  meeting.transcript = transcriptCache.join('\\n');
+  // save meeting briefly to localStorage meetings list
+  const meetings = JSON.parse(localStorage.getItem('demo_meetings')||'[]');
+  meetings.unshift(meeting);
+  localStorage.setItem('demo_meetings', JSON.stringify(meetings));
+  document.getElementById('genStatus').innerText = 'Meeting ended and saved (local).';
+  stopTimer();
+  // avatar notifies host
+  avatarNotify(`Meeting ended: ${meeting.title}. Summary ready to generate.`);
+  triggerAvatarPulse(2);
+});
+
+/* schedule meeting feature */
+document.getElementById('scheduleBtn').addEventListener('click', ()=>{
+  const dt = document.getElementById('scheduleAt').value;
+  const title = document.getElementById('meetingTitle').value || 'Scheduled Meeting';
+  if(!dt){ alert('Choose date & time'); return; }
+  const scheduledTime = new Date(dt);
+  if(scheduledTime < new Date()){ alert('Choose a future time'); return; }
+  // store scheduled in localStorage
+  const sched = JSON.parse(localStorage.getItem('demo_schedules')||'[]');
+  const id = Date.now();
+  sched.unshift({id, title, time: scheduledTime.toISOString()});
+  localStorage.setItem('demo_schedules', JSON.stringify(sched));
+  avatarNotify(`Meeting scheduled: "${title}" at ${scheduledTime.toLocaleString()}`);
+  // set a timeout to show popup shortly before meeting (demo: schedule will trigger a toast at scheduled time)
+  const ms = scheduledTime.getTime() - Date.now();
+  // For demo, if time is far in future we won't set a huge timeout; we set if <= 7 days
+  if(ms > 0 && ms < 1000*60*60*24*7){
+    setTimeout(()=> {
+      avatarNotify(`Reminder: Meeting "${title}" is starting now.`);
+      // optional: open meetings page
+      goto('meetings');
+      triggerAvatarPulse(4);
+    }, ms);
+  }
+  refreshSchedulesUI();
+});
+
+/* attachments (simulate 'package collect') */
+document.getElementById('attachFiles').addEventListener('change', (ev)=>{
+  const files = Array.from(ev.target.files);
+  if(!meeting){ alert('Start meeting first to attach files'); ev.target.value=''; return; }
+  const list = document.getElementById('attachedList');
+  files.forEach(f=>{
+    const id = Date.now()+'_'+Math.random().toString(36).slice(2,8);
+    meeting.attachments.push({id, name:f.name, size:f.size, type:f.type});
+    const div = document.createElement('div');
+    div.className = 'file-item';
+    div.innerHTML = `<div>${f.name} <span class="small">(${Math.round(f.size/1024)} KB)</span></div><div><button class="btn ghost" onclick="removeAttachment('${id}', this)">Remove</button></div>`;
+    list.appendChild(div);
+  });
+  ev.target.value='';
+});
+function removeAttachment(id, btn){
+  if(!meeting) return;
+  meeting.attachments = meeting.attachments.filter(a=>a.id!==id);
+  btn.closest('.file-item').remove();
+}
+
+/* ---------- Generate summary & deliver to host ---------- */
+document.getElementById('generateSummaryBtn').addEventListener('click', async ()=>{
+  if(!meeting || !meeting.transcript) { alert('No finished meeting transcript — start and end a meeting first'); return; }
+  const lang = document.getElementById('summaryLang').value;
+  const format = document.getElementById('summaryFormat').value;
+  document.getElementById('genStatus').innerText = 'Generating summary...';
+  // AI summary simulation (in real app call AI model)
+  const summary = simpleSummarize(meeting.transcript);
+  const translated = simulateTranslate(summary, lang);
+  // create file content and download / store
+  await createAndStoreSummary(meeting, translated, format);
+  document.getElementById('genStatus').innerText = `Summary generated and delivered to host (${format.toUpperCase()}, ${lang}).`;
+  refreshHostStorage();
+  refreshReportsList();
+  // avatar confirms delivery
+  avatarNotify(`Summary delivered to host as ${format.toUpperCase()} (${lang})`);
+  triggerAvatarPulse(2);
+});
+
+/* a very simple summarizer (frontend demo) */
+function simpleSummarize(text){
+  const lines = text.split('\\n').slice(-12);
+  const key = lines.filter(l=>/Action|action|assign|ticket|echo|jitter|buffer/i.test(l));
+  let s = 'Summary — key points:\\n' + lines.join('\\n') + '\\n\\nActions:\\n';
+  s += key.length ? key.map(k=>'- '+k).join('\\n') : '- No explicit actions found (demo)';
+  return s;
+}
+
+/* fake translation function — returns same text with language tag (demo) */
+function simulateTranslate(text, lang){
+  const labels = {en:'(English)', hi:'(Hindi)', mr:'(Marathi)', gu:'(Gujarati)'};
+  return labels[lang] + '\\n\\n' + text;
+}
+
+/* create files in browser and store a copy to localStorage as "delivered to host" (demo) */
+async function createAndStoreSummary(meetingObj, content, format){
+    const host = document.getElementById('currentHost').value || 'host1';
+    const filenameBase = `${meetingObj.title.replace(/\s+/g,'_')}_${Date.now()}`;
+
+    if(format==='pdf'){
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
+        const lines = content.split('\n');
+        let y = 10;
+        lines.forEach(line => {
+            doc.text(line, 10, y);
+            y += 10;
+            if(y > 280){ doc.addPage(); y = 10; }
+        });
+        doc.save(filenameBase + '.pdf');
+    } else {
+        // existing code for DOCX, TXT, PNG, JPG
+    }
+
+    // save to host storage (localStorage)
+    const storageKey = 'host_storage_' + host;
+    const list = JSON.parse(localStorage.getItem(storageKey)||'[]');
+    const entry = {
+        id: Date.now(),
+        meetingId: meetingObj.id,
+        title: meetingObj.title,
+        date: new Date().toLocaleString(),
+        lang: document.getElementById('summaryLang').value,
+        format: format,
+        contentSnippet: content.slice(0,200)
+    };
+    list.unshift(entry);
+    localStorage.setItem(storageKey, JSON.stringify(list));
+}
+
+/* refresh host storage UI */
+function refreshHostStorage(){
+  const host = document.getElementById('currentHost').value;
+  const storageKey = 'host_storage_' + host;
+  const list = JSON.parse(localStorage.getItem(storageKey)||'[]');
+  const el = document.getElementById('hostStorage'); el.innerHTML = '';
+  if(list.length===0){ el.innerHTML = '<div class="small">No summaries delivered yet for this host.</div>'; return; }
+  list.forEach(it=>{
+    const d = document.createElement('div'); d.className='file-item'; d.style.display='flex'; d.style.justifyContent='space-between'; d.style.alignItems='center';
+    d.innerHTML = `<div><strong>${it.title}</strong><div class="small">${it.date} • ${it.format.toUpperCase()} • ${it.lang}</div></div><div><button class="btn ghost" onclick='viewHostItem("${it.id}")'>View</button></div>`;
+    el.appendChild(d);
+  });
+}
+function viewHostItem(id){
+  const host = document.getElementById('currentHost').value;
+  const storageKey = 'host_storage_' + host;
+  const list = JSON.parse(localStorage.getItem(storageKey)||'[]');
+  const it = list.find(x=>x.id==id);
+  if(it) alert(`Simulated host item:\\n${it.title}\\n${it.date}\\nFormat: ${it.format}\\nLang: ${it.lang}\\n\\nSnippet:\\n${it.contentSnippet}`);
+}
+function downloadHostAll(){
+  const host = document.getElementById('currentHost').value;
+  const storageKey = 'host_storage_' + host;
+  const list = JSON.parse(localStorage.getItem(storageKey)||'[]');
+  if(list.length===0){ alert('No host items'); return; }
+  const blob = new Blob([JSON.stringify(list, null, 2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = host + '_summaries.json'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+}
+
+/* refresh reports list */
+function refreshReportsList(){
+  const arr = JSON.parse(localStorage.getItem('demo_meetings')||'[]');
+  const el = document.getElementById('reportsList'); el.innerHTML = '';
+  if(arr.length===0) el.innerHTML = '<div class="small">No saved meetings</div>';
+  arr.forEach(m=>{
+    const d = document.createElement('div'); d.className='small'; d.style.marginBottom='8px';
+    d.innerHTML = `<strong>${m.title}</strong> <span class="small">• ${new Date(m.start).toLocaleString()}</span>`;
+    el.appendChild(d);
+  });
+}
+
+/* on host change */
+document.getElementById('currentHost').addEventListener('change', refreshHostStorage);
+
+/* add host */
+document.getElementById('btnNewHost').addEventListener('click', ()=>{
+  const email = prompt('Host email'); if(!email) return;
+  const val = 'host_' + Math.random().toString(36).slice(2,8);
+  const el = document.getElementById('currentHost');
+  const opt = document.createElement('option'); opt.value = val; opt.innerText = `Host — ${email}`; el.appendChild(opt); el.value = val;
+  alert('Host added (demo): ' + email);
+  refreshHostStorage();
+});
+
+/* ---------- AI Chat simulated (main chat) ---------- */
+function sendChat(){
+  const input = document.getElementById('chatInput'); const text = input.value.trim(); if(!text) return;
+  pushChat('user', text); input.value='';
+  setTimeout(()=>{ const reply = generateChatReply(text); pushChat('ai', reply); }, 700);
+}
+function pushChat(who, text){
+  const el = document.getElementById('chatMessages');
+  const div = document.createElement('div'); div.className='msg ' + (who==='user' ? 'user' : 'ai');
+  div.innerHTML = `<div style="display:inline-block;max-width:80%"><div style="padding:8px;border-radius:8px;background:${who==='user'?'#06b6d4':'rgba(255,255,255,0.03)'};color:${who==='user'?'#021022':'#eaf6ff'}">${text}</div></div>`;
+  el.appendChild(div); el.scrollTop = el.scrollHeight;
+}
+function generateChatReply(q){
+  q = q.toLowerCase();
+  if(q.includes('summary')) return 'To generate a summary, go to Meetings → Start meeting, end it, then click Generate Summary.';
+  if(q.includes('format')) return 'Available formats: PDF, DOCX, TXT, PNG, JPG, ZIP. (.exe is not provided for security).';
+  if(q.includes('language')) return 'Supported demo languages: English, Hindi, Marathi, Gujarati.';
+  return 'Demo AI: I can answer simple questions about the app. For advanced AI, connect to a backend model.';
+}
+
+/* ---------- Avatar UI & chat (Sara) ---------- */
+const avatarBtn = document.getElementById('avatarBtn');
+const avatarPopup = document.getElementById('avatarPopup');
+const avatarChat = document.getElementById('avatarChat');
+const avatarChatBody = document.getElementById('avatarChatBody');
+const avatarChatInput = document.getElementById('avatarChatInput');
+const avatarNotification = document.getElementById('avatarNotification');
+
+avatarBtn.addEventListener('click', ()=>{
+  const expanded = avatarBtn.getAttribute('aria-expanded') === 'true';
+  avatarBtn.setAttribute('aria-expanded', String(!expanded));
+  // toggle popup
+  if(avatarPopup.classList.contains('hidden')){
+    avatarPopup.classList.remove('hidden');
+    avatarPopup.style.display = 'block';
+    avatarPopup.setAttribute('aria-hidden','false');
+  } else {
+    avatarPopup.classList.add('hidden');
+    avatarPopup.style.display = 'none';
+    avatarPopup.setAttribute('aria-hidden','true');
+  }
+});
+
+/* open the chat window for Sara */
+function openAvatarChat(){
+  avatarChat.style.display = 'flex';
+  avatarChat.setAttribute('aria-hidden','false');
+  avatarPopup.classList.add('hidden'); avatarPopup.style.display='none';
+  // greet
+  pushAvatar('ai', "Hi, I'm Sara. How can I help you today? I can remind you about meetings, generate summaries, and deliver files.");
+}
+
+/* close avatar chat */
+function closeAvatarChat(){ avatarChat.style.display = 'none'; avatarChat.setAttribute('aria-hidden','true'); }
+
+/* push message into avatar chat */
+function pushAvatar(who, text){
+  const el = avatarChatBody;
+  const wrapper = document.createElement('div');
+  wrapper.style.marginBottom = '8px';
+  if(who==='ai'){
+    wrapper.innerHTML = `<div style="background:rgba(255,255,255,0.03);padding:8px;border-radius:8px">${text}</div>`;
+  } else {
+    wrapper.innerHTML = `<div style="text-align:right"><div style="display:inline-block;background:#06b6d4;color:#021022;padding:8px;border-radius:8px">${text}</div></div>`;
+  }
+  el.appendChild(wrapper);
+  el.scrollTop = el.scrollHeight;
+}
+
+/* send from avatar chat input */
+function avatarSend(){
+  const txt = avatarChatInput.value.trim(); if(!txt) return;
+  pushAvatar('user', txt); avatarChatInput.value='';
+  // simple reply simulation
+  setTimeout(()=> {
+    const reply = generateAvatarReply(txt);
+    pushAvatar('ai', reply);
+  }, 700);
+}
+
+/* simple avatar reply logic (more persona) */
+function generateAvatarReply(q){
+  q = q.toLowerCase();
+  if(q.includes('when') && q.includes('meeting')) {
+    const next = getNextScheduled();
+    if(next) return `Your next meeting "${next.title}" is scheduled at ${new Date(next.time).toLocaleString()}.`;
+    return "You have no scheduled meetings.";
+  }
+  if(q.includes('remind') || q.includes('reminder')) return "I can remind you before a meeting — use Schedule and I will notify you.";
+  if(q.includes('summary')) return "To get a summary, start and end the meeting, then click Generate Summary. I will create and deliver it to the host.";
+  if(q.includes('hello') || q.includes('hi')) return "Hello! 😊 I'm Sara — your assistant. Ask me about meetings, summaries, or formats.";
+  return "Sorry, I didn't understand that fully. I can help with meeting reminders, summary generation and delivering files.";
+}
+
+/* avatar notification helper */
+let avatarPulseTimer = null;
+function avatarNotify(msg, timeout=6000){
+  avatarNotification.textContent = msg;
+  avatarNotification.classList.remove('hidden');
+  avatarNotification.style.display = 'inline-block';
+  // hide after timeout
+  setTimeout(()=>{ avatarNotification.classList.add('hidden'); avatarNotification.style.display='none'; }, timeout);
+}
+
+/* avatar pulse effect for n times */
+function triggerAvatarPulse(times=3){
+  let i=0;
+  avatarBtn.classList.add('pulse');
+  clearInterval(avatarPulseTimer);
+  avatarPulseTimer = setInterval(()=>{
+    i++;
+    if(i>=times){ avatarBtn.classList.remove('pulse'); clearInterval(avatarPulseTimer); }
+  }, 1600);
+}
+
+/* utility: show next scheduled meeting via popup */
+function showUpcoming(){
+  const next = getNextScheduled();
+  if(next) avatarNotify(`Next meeting: "${next.title}" at ${new Date(next.time).toLocaleString()}`, 8000);
+  else avatarNotify('No upcoming meetings scheduled', 5000);
+}
+
+/* schedules helper */
+function refreshSchedulesUI(){
+  const sched = JSON.parse(localStorage.getItem('demo_schedules')||'[]');
+  // optional: show scheduled list in UI (not added visually for brevity)
+}
+
+/* get next scheduled meeting (soonest future) */
+function getNextScheduled(){
+  const sched = JSON.parse(localStorage.getItem('demo_schedules')||'[]');
+  if(!sched || sched.length===0) return null;
+  // sort ascending by time
+  const now = Date.now();
+  const future = sched.map(s=>({...s, ms: new Date(s.time).getTime()})).filter(s=>s.ms > now).sort((a,b)=>a.ms-b.ms);
+  return future.length?future[0]:null;
+}
+
+/* ---------- Timer helpers ---------- */
+let timerStart = null;
+function startTimer(){
+  timerStart = Date.now();
+  clearInterval(meetingTimerInterval);
+  meetingTimerInterval = setInterval(()=>{
+    const diff = Date.now() - timerStart;
+    document.getElementById('meetingTimer').innerText = formatMs(diff);
+  }, 999);
+}
+function stopTimer(){ clearInterval(meetingTimerInterval); document.getElementById('meetingTimer').innerText = '00:00:00'; }
+function formatMs(ms){
+  const s = Math.floor(ms/1000)%60; const m = Math.floor(ms/60000)%60; const h = Math.floor(ms/3600000);
+  return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+}
+
+/* ---------- storage init & initial UI refresh ---------- */
+(function init(){
+  // create some demo host storage keys
+  if(!localStorage.getItem('host_storage_host1')) localStorage.setItem('host_storage_host1', JSON.stringify([]));
+  if(!localStorage.getItem('host_storage_host2')) localStorage.setItem('host_storage_host2', JSON.stringify([]));
+  if(!localStorage.getItem('demo_schedules')) localStorage.setItem('demo_schedules', JSON.stringify([]));
+  refreshHostStorage(); refreshReportsList(); refreshSchedulesUI();
+  // nav initial page
+  document.querySelectorAll('section.page').forEach(s=>s.style.display = s.id==='page-dashboard' ? 'block' : 'none');
+  // small welcome message via avatar
+  setTimeout(()=> avatarNotify('Hi — I\'m Sara. I will notify you about meetings.' ,5000), 1200);
+})();
+
+// Meeting reminder
+function addReminder(time){
+  if(document.getElementById('notifToggle').checked){
+    setTimeout(()=>alert('Reminder: Meeting is about to start!'),Math.max(0,time-Date.now()-5*60*1000));
+  }
+}
+
+</script>
+</body>
+</html>
